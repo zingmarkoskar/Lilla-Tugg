@@ -36,14 +36,14 @@ const ALLERGEN_FORSLAG = [
 const MALTIDER = ["Frukost", "Mellanmål FM", "Lunch", "Mellanmål EM", "Middag", "Kvällsmål"];
 
 const TILLVAXTNIVAER = [
-  { namn: "Litet frö", beskrivning: "Allt börjar med ett frö.", emoji: "🌰", poangKrav: 0 },
-  { namn: "Grodd", beskrivning: "Första spirorna syns.", emoji: "🌱", poangKrav: 5 },
-  { namn: "Krukväxt", beskrivning: "Börjar ta form.", emoji: "🪴", poangKrav: 15 },
-  { namn: "Blad", beskrivning: "Växer sig stark.", emoji: "🌿", poangKrav: 30 },
-  { namn: "Knopp", beskrivning: "Snart något nytt.", emoji: "🌷", poangKrav: 50 },
-  { namn: "Blomma", beskrivning: "I full blom.", emoji: "🌻", poangKrav: 75 },
-  { namn: "Frukt", beskrivning: "Bär frukt av allt arbete.", emoji: "🍅", poangKrav: 100 },
-  { namn: "Träd", beskrivning: "Stadigt och stort.", emoji: "🌳", poangKrav: 150 },
+  { namn: "Hjälteägg", beskrivning: "Allt börjar med ett mystiskt ägg.", emoji: "🥚", poangKrav: 0 },
+  { namn: "Kryptobebis", beskrivning: "Första tecknen på superkrafter.", emoji: "👶", poangKrav: 5 },
+  { namn: "Maskbärare", beskrivning: "Redo för sitt första uppdrag.", emoji: "🦺", poangKrav: 15 },
+  { namn: "Capekramare", beskrivning: "Övar på sitt signaturhopp.", emoji: "🦸", poangKrav: 30 },
+  { namn: "Kraftpåslag", beskrivning: "Superkrafterna börjar visa sig.", emoji: "💥", poangKrav: 50 },
+  { namn: "Stadens hjälte", beskrivning: "Känd i hela kvarteret.", emoji: "🌟", poangKrav: 75 },
+  { namn: "Sköldburen", beskrivning: "Skyddar alla omkring sig.", emoji: "🛡️", poangKrav: 100 },
+  { namn: "Legendarisk hjälte", beskrivning: "En sann legend bland hjältar.", emoji: "👑", poangKrav: 150 },
 ];
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
