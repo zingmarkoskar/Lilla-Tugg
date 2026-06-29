@@ -11,6 +11,17 @@ import {
   ExternalLink,
 } from "lucide-react";
 
+import hjalteBild1 from "../assets/hjaltar/niva-1.png";
+import hjalteBild2 from "../assets/hjaltar/niva-2.png";
+import hjalteBild3 from "../assets/hjaltar/niva-3.png";
+import hjalteBild4 from "../assets/hjaltar/niva-4.png";
+import hjalteBild5 from "../assets/hjaltar/niva-5.png";
+import hjalteBild6 from "../assets/hjaltar/niva-6.png";
+import hjalteBild7 from "../assets/hjaltar/niva-7.png";
+import hjalteBild8 from "../assets/hjaltar/niva-8.png";
+import hjalteBild9 from "../assets/hjaltar/niva-9.png";
+import hjalteBild10 from "../assets/hjaltar/niva-10.png";
+
 // ---- Static reference data ----
 
 const SMAK_FORSLAG = [
@@ -36,14 +47,16 @@ const ALLERGEN_FORSLAG = [
 const MALTIDER = ["Frukost", "Mellanmål FM", "Lunch", "Mellanmål EM", "Middag", "Kvällsmål"];
 
 const TILLVAXTNIVAER = [
-  { namn: "Hjälteägg", beskrivning: "Allt börjar med ett mystiskt ägg.", emoji: "🥚", poangKrav: 0 },
-  { namn: "Kryptobebis", beskrivning: "Första tecknen på superkrafter.", emoji: "👶", poangKrav: 5 },
-  { namn: "Maskbärare", beskrivning: "Redo för sitt första uppdrag.", emoji: "🦺", poangKrav: 15 },
-  { namn: "Capekramare", beskrivning: "Övar på sitt signaturhopp.", emoji: "🦸", poangKrav: 30 },
-  { namn: "Kraftpåslag", beskrivning: "Superkrafterna börjar visa sig.", emoji: "💥", poangKrav: 50 },
-  { namn: "Stadens hjälte", beskrivning: "Känd i hela kvarteret.", emoji: "🌟", poangKrav: 75 },
-  { namn: "Sköldburen", beskrivning: "Skyddar alla omkring sig.", emoji: "🛡️", poangKrav: 100 },
-  { namn: "Legendarisk hjälte", beskrivning: "En sann legend bland hjältar.", emoji: "👑", poangKrav: 150 },
+  { namn: "Lilla hjälten", beskrivning: "Allt börjar med en cape och ett leende.", bild: hjalteBild1, poangKrav: 0 },
+  { namn: "Stjärnälva", beskrivning: "Första gnistorna av magi visar sig.", bild: hjalteBild2, poangKrav: 5 },
+  { namn: "Djungelhjälte", beskrivning: "Vänner med allt som växer.", bild: hjalteBild3, poangKrav: 15 },
+  { namn: "Voltflickan", beskrivning: "Full av energi och blixtsnabb.", bild: hjalteBild4, poangKrav: 30 },
+  { namn: "Hammarhjälte", beskrivning: "Stark som en åskvigg.", bild: hjalteBild5, poangKrav: 50 },
+  { namn: "Skugghjälte", beskrivning: "Tyst, snabb och alltid redo.", bild: hjalteBild6, poangKrav: 75 },
+  { namn: "Rymdhjälte", beskrivning: "Utrustad för uppdrag bortom det kända.", bild: hjalteBild7, poangKrav: 100 },
+  { namn: "Ljushjälte", beskrivning: "Lyser upp allt i sin närhet.", bild: hjalteBild8, poangKrav: 130 },
+  { namn: "Superbebis", beskrivning: "Stadens favorit i cape.", bild: hjalteBild9, poangKrav: 165 },
+  { namn: "Guldhjälte", beskrivning: "En sann legend i rustning.", bild: hjalteBild10, poangKrav: 200 },
 ];
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
@@ -232,8 +245,8 @@ function OversiktVy({ barnNamn, setBarnNamn, provadeSmaker, allergenLogg, totalt
       {/* Tillväxtresa */}
       <div className="bg-gradient-to-b from-[#EAF1E8] to-[#FBF6EF] border border-[#5B7B5A]/20 rounded-2xl px-6 py-7 mb-5 text-center">
         <div className="relative inline-block">
-          <div className="w-24 h-24 rounded-full bg-white shadow-sm flex items-center justify-center text-5xl mx-auto mb-3">
-            {aktuell.emoji}
+          <div className="w-24 h-24 rounded-full bg-white shadow-sm overflow-hidden mx-auto mb-3">
+            <img src={aktuell.bild} alt={aktuell.namn} className="w-full h-full object-cover" />
           </div>
           <span className="absolute -bottom-1 right-0 bg-[#E8743B] text-white text-[10px] font-semibold px-2 py-0.5 rounded-full">
             Nivå {TILLVAXTNIVAER.indexOf(aktuell) + 1}
@@ -251,7 +264,12 @@ function OversiktVy({ barnNamn, setBarnNamn, provadeSmaker, allergenLogg, totalt
           </div>
           <div className="flex justify-between text-xs text-[#A9A092] mt-1.5">
             <span>{Math.round(poang)} poäng</span>
-            {nasta && <span>{Math.max(0, Math.ceil(nasta.poangKrav - poang))} till {nasta.namn} {nasta.emoji}</span>}
+            {nasta && (
+              <span className="inline-flex items-center gap-1">
+                {Math.max(0, Math.ceil(nasta.poangKrav - poang))} till {nasta.namn}
+                <img src={nasta.bild} alt={nasta.namn} className="w-4 h-4 rounded-full object-cover inline-block" />
+              </span>
+            )}
           </div>
         </div>
       </div>
