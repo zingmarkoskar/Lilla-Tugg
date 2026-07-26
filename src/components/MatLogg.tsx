@@ -385,7 +385,7 @@ function DagbokVy({ dagsloggar, setDagsloggar }) {
               type="date"
               value={datum}
               onChange={(e) => setDatum(e.target.value)}
-              className="w-full min-w-0 bg-[#FBF6EF] border border-[#E8DFCC] rounded-xl px-3 py-2 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#E8743B]"
+              className="w-full max-w-full min-w-0 box-border appearance-none bg-[#FBF6EF] border border-[#E8DFCC] rounded-xl px-3 py-2 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#E8743B]"
             />
           </div>
           <div className="relative min-w-0">
