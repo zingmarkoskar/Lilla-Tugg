@@ -9,6 +9,9 @@ import {
   Loader2,
   BookOpen,
   ExternalLink,
+  Moon,
+  Sun,
+  Pencil,
 } from "lucide-react";
 
 import hjalteBild1 from "../assets/hjaltar/niva-1.png";
@@ -45,6 +48,94 @@ const ALLERGEN_FORSLAG = [
 ];
 
 const MALTIDER = ["Frukost", "Mellanmål FM", "Lunch", "Mellanmål EM", "Middag", "Kvällsmål"];
+
+// Ungefärliga riktvärden för vakna-fönster (timmar) per ålder — inte en exakt vetenskaplig
+// algoritm, utan en grov fingervisning likt de flesta sömnkonsulters riktmärken.
+// vaknaFonster: timmar vaken innan respektive tupplur under dagen, i ordning.
+// sistaVaknaFonster: timmar vaken innan läggning för kvällen.
+const SOMN_SCHEMA = [
+  { maxVeckor: 8, beskrivning: "Nyfödd — sömnen är oregelbunden än, inga fasta mönster.", vaknaFonster: [], sistaVaknaFonster: 1, rekommenderadTotalTimmar: 16 },
+  { maxVeckor: 17, beskrivning: "Ofta runt 4 tupplurar per dag.", vaknaFonster: [1.25, 1.5, 1.5], sistaVaknaFonster: 1.75, rekommenderadTotalTimmar: 14.5 },
+  { maxVeckor: 26, beskrivning: "Ofta runt 3 tupplurar per dag.", vaknaFonster: [1.75, 2, 2.25], sistaVaknaFonster: 2.5, rekommenderadTotalTimmar: 13.5 },
+  { maxVeckor: 35, beskrivning: "Ofta 3 tupplurar, på väg mot 2.", vaknaFonster: [2.25, 2.5, 2.5], sistaVaknaFonster: 3.25, rekommenderadTotalTimmar: 13 },
+  { maxVeckor: 52, beskrivning: "Ofta runt 2 tupplurar per dag.", vaknaFonster: [2.75, 3], sistaVaknaFonster: 3.25, rekommenderadTotalTimmar: 13 },
+  { maxVeckor: 78, beskrivning: "Ofta 2 tupplurar, något längre vakna-fönster.", vaknaFonster: [3, 3.25], sistaVaknaFonster: 3.5, rekommenderadTotalTimmar: 12.5 },
+  { maxVeckor: 130, beskrivning: "Ofta 1 tuppplur mitt på dagen.", vaknaFonster: [5], sistaVaknaFonster: 4, rekommenderadTotalTimmar: 12 },
+  { maxVeckor: Infinity, beskrivning: "Många barn slutar med tuppluren i den här åldern.", vaknaFonster: [], sistaVaknaFonster: 6, rekommenderadTotalTimmar: 11 },
+];
+
+function getSomnSchema(alderIVeckor) {
+  return SOMN_SCHEMA.find((s) => alderIVeckor < s.maxVeckor) || SOMN_SCHEMA[SOMN_SCHEMA.length - 1];
+}
+
+function beraknaAlderIVeckor(fodelsedatum) {
+  if (!fodelsedatum) return null;
+  const ms = Date.now() - new Date(fodelsedatum + "T00:00:00").getTime();
+  if (ms < 0) return null;
+  return ms / (1000 * 60 * 60 * 24 * 7);
+}
+
+function formatAlder(veckor) {
+  if (veckor == null) return null;
+  if (veckor < 8) return `${Math.floor(veckor)} v`;
+  const manader = Math.floor(veckor / 4.345);
+  if (manader < 24) return `${manader} mån`;
+  return `${Math.floor(manader / 12)} år`;
+}
+
+function formatKlockslag(iso) {
+  return new Date(iso).toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" });
+}
+
+function toLocalTimeInputValue(iso) {
+  const d = new Date(iso);
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+
+function combineDateAndTime(originalIso, timeStr) {
+  const d = new Date(originalIso);
+  const [hh, mm] = timeStr.split(":").map(Number);
+  d.setHours(hh, mm, 0, 0);
+  return d.toISOString();
+}
+
+function formatVaraktighet(minuter) {
+  const h = Math.floor(minuter / 60);
+  const m = Math.round(minuter % 60);
+  if (h === 0) return `${m} min`;
+  if (m === 0) return `${h} h`;
+  return `${h} h ${m} min`;
+}
+
+// Räknar ut när nästa sömnpass (eller läggning) väntas, baserat på senast avslutade
+// sömnpass och hur många tupplurar som redan är loggade samma dag.
+function berakSomnprognos(somnloggar, alderIVeckor) {
+  if (alderIVeckor == null) return null;
+
+  const avslutade = somnloggar
+    .filter((s) => s.slut)
+    .sort((a, b) => new Date(b.slut) - new Date(a.slut));
+  const senaste = avslutade[0];
+  if (!senaste) return null;
+
+  const schema = getSomnSchema(alderIVeckor);
+  const referensTid = new Date(senaste.slut);
+  const referensDag = referensTid.toISOString().slice(0, 10);
+
+  const antalPassIdag = avslutade.filter(
+    (s) => s.typ === "pass" && new Date(s.slut).toISOString().slice(0, 10) === referensDag && new Date(s.slut) <= referensTid
+  ).length;
+
+  const arLaggning = antalPassIdag >= schema.vaknaFonster.length;
+  const vaknaFonster = arLaggning ? schema.sistaVaknaFonster : schema.vaknaFonster[antalPassIdag];
+  const tid = new Date(referensTid.getTime() + vaknaFonster * 60 * 60 * 1000);
+
+  return {
+    label: arLaggning ? "Läggning" : "Nästa sömnpass",
+    tid,
+    schema,
+  };
+}
 
 const TILLVAXTNIVAER = [
   { namn: "Lilla hjälten", beskrivning: "Allt börjar med en cape och ett leende.", bild: hjalteBild1, poangKrav: 0 },
@@ -120,11 +211,14 @@ export default function MatLogg() {
   const [flik, setFlik] = useState("oversikt");
 
   const [barnNamn, setBarnNamn, namnLoaded] = usePersistentState("barn-namn", "");
+  const [barnFodelsedatum, setBarnFodelsedatum, fodelsedatumLoaded] = usePersistentState("barn-fodelsedatum", "");
   const [provadeSmaker, setProvadeSmaker, smakerLoaded] = usePersistentState("provade-smaker-v2", []);
   const [allergenLogg, setAllergenLogg, allergenLoaded] = usePersistentState("allergen-logg-v2", []);
   const [dagsloggar, setDagsloggar, dagsloggarLoaded, storageOk] = usePersistentState("dagsloggar-v2", {});
+  const [somnloggar, setSomnloggar, somnloggarLoaded] = usePersistentState("somn-loggar-v1", []);
 
-  const allLoaded = namnLoaded && smakerLoaded && allergenLoaded && dagsloggarLoaded;
+  const allLoaded =
+    namnLoaded && fodelsedatumLoaded && smakerLoaded && allergenLoaded && dagsloggarLoaded && somnloggarLoaded;
 
   if (!allLoaded) {
     return (
@@ -135,12 +229,16 @@ export default function MatLogg() {
   }
 
   const totaltAntalMaltider = Object.values(dagsloggar).reduce((sum, dag) => sum + dag.length, 0);
+  const totaltAntalSomnpass = somnloggar.filter((s) => s.slut).length;
+  const alderIVeckor = beraknaAlderIVeckor(barnFodelsedatum);
 
-  // Poäng: 1 poäng per provad smak, 3 poäng per introducerat allergen (utan stark reaktion), 1 poäng per loggad måltid (max 1/dag räknas inte särskilt, men vi räknar enkelt här)
+  // Poäng: 1 poäng per provad smak, 3 poäng per introducerat allergen (utan stark reaktion),
+  // 0.5 poäng per loggad måltid och per loggat sömnpass (max 50 vardera räknas)
   const poang =
     provadeSmaker.length * 1 +
     allergenLogg.filter((a) => a.reaktion !== "stark").length * 3 +
-    Math.min(totaltAntalMaltider, 50) * 0.5;
+    Math.min(totaltAntalMaltider, 50) * 0.5 +
+    Math.min(totaltAntalSomnpass, 50) * 0.5;
 
   return (
     <div className="min-h-screen bg-[#FBF6EF] text-[#2D2A26]">
@@ -159,7 +257,7 @@ export default function MatLogg() {
             Småbarnsmat
           </h1>
           <p className="text-[#6B6358] text-sm mt-1">
-            Logga måltider, upptäck smaker, introducera allergener.
+            Logga måltider och sömn, upptäck smaker, introducera allergener.
           </p>
           {!storageOk && (
             <p className="text-[#C75450] text-xs mt-2 flex items-center gap-1">
@@ -172,6 +270,7 @@ export default function MatLogg() {
           {[
             { key: "oversikt", label: "Översikt" },
             { key: "dagbok", label: "Dagbok" },
+            { key: "somn", label: "Sömn" },
             { key: "smaker", label: "Smaker" },
             { key: "allergen", label: "Allergen" },
           ].map((t) => (
@@ -180,7 +279,7 @@ export default function MatLogg() {
               role="tab"
               aria-selected={flik === t.key}
               onClick={() => setFlik(t.key)}
-              className={`flex-1 min-w-0 truncate px-1.5 py-2.5 rounded-xl text-[13px] sm:text-sm font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#E8743B] ${
+              className={`flex-1 min-w-0 px-1 py-2.5 rounded-xl text-center leading-tight text-[11px] sm:text-sm font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#E8743B] ${
                 flik === t.key ? "bg-white text-[#2D2A26] shadow-sm" : "text-[#6B6358] hover:text-[#2D2A26]"
               }`}
             >
@@ -193,14 +292,21 @@ export default function MatLogg() {
           <OversiktVy
             barnNamn={barnNamn}
             setBarnNamn={setBarnNamn}
+            barnFodelsedatum={barnFodelsedatum}
+            setBarnFodelsedatum={setBarnFodelsedatum}
+            alderIVeckor={alderIVeckor}
             provadeSmaker={provadeSmaker}
             allergenLogg={allergenLogg}
             totaltAntalMaltider={totaltAntalMaltider}
             poang={poang}
             dagsloggar={dagsloggar}
+            somnloggar={somnloggar}
           />
         )}
         {flik === "dagbok" && <DagbokVy dagsloggar={dagsloggar} setDagsloggar={setDagsloggar} />}
+        {flik === "somn" && (
+          <SomnVy somnloggar={somnloggar} setSomnloggar={setSomnloggar} alderIVeckor={alderIVeckor} />
+        )}
         {flik === "smaker" && <SmakerVy provade={provadeSmaker} setProvade={setProvadeSmaker} />}
         {flik === "allergen" && <AllergenVy logg={allergenLogg} setLogg={setAllergenLogg} />}
       </div>
@@ -225,16 +331,32 @@ function getNiva(poang) {
 
 // ---- Översikt ----
 
-function OversiktVy({ barnNamn, setBarnNamn, provadeSmaker, allergenLogg, totaltAntalMaltider, poang, dagsloggar }) {
+function OversiktVy({
+  barnNamn,
+  setBarnNamn,
+  barnFodelsedatum,
+  setBarnFodelsedatum,
+  alderIVeckor,
+  provadeSmaker,
+  allergenLogg,
+  totaltAntalMaltider,
+  poang,
+  dagsloggar,
+  somnloggar,
+}) {
   const [namnInput, setNamnInput] = useState(barnNamn);
+  const [fodelsedatumInput, setFodelsedatumInput] = useState(barnFodelsedatum);
   const { aktuell, nasta } = getNiva(poang);
 
   const idagISO = todayISO();
   const dagensPoster = dagsloggar[idagISO] || [];
+  const totaltAntalSomnpass = somnloggar.filter((s) => s.slut).length;
 
   const nastaAllergen = ALLERGEN_FORSLAG.find(
     (a) => !allergenLogg.some((l) => l.allergen === a)
   );
+
+  const somnprognos = berakSomnprognos(somnloggar, alderIVeckor);
 
   const progressMot = nasta
     ? Math.min(100, Math.round(((poang - aktuell.poangKrav) / (nasta.poangKrav - aktuell.poangKrav)) * 100))
@@ -274,30 +396,54 @@ function OversiktVy({ barnNamn, setBarnNamn, provadeSmaker, allergenLogg, totalt
         </div>
       </div>
 
-      {/* Barnets namn */}
-      <div className="bg-white rounded-2xl border border-[#E8DFCC] p-3 mb-5 flex items-center gap-2.5">
-        <span className="w-9 h-9 rounded-full bg-[#EAF1E8] flex items-center justify-center text-lg shrink-0">
-          🙂
-        </span>
-        <input
-          value={namnInput}
-          onChange={(e) => setNamnInput(e.target.value)}
-          placeholder="Barnets namn (valfritt)"
-          className="flex-1 bg-transparent text-sm focus-visible:outline-none placeholder:text-[#A9A092]"
-        />
-        <button
-          onClick={() => setBarnNamn(namnInput.trim())}
-          className="shrink-0 text-xs font-medium bg-[#2D2A26] text-white px-3 py-1.5 rounded-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#E8743B]"
-        >
-          Spara
-        </button>
+      {/* Barnets namn och ålder */}
+      <div className="bg-white rounded-2xl border border-[#E8DFCC] p-3 mb-5">
+        <div className="flex items-center gap-2.5">
+          <span className="w-9 h-9 rounded-full bg-[#EAF1E8] flex items-center justify-center text-lg shrink-0">
+            🙂
+          </span>
+          <input
+            value={namnInput}
+            onChange={(e) => setNamnInput(e.target.value)}
+            placeholder="Barnets namn (valfritt)"
+            className="flex-1 min-w-0 bg-transparent text-sm focus-visible:outline-none placeholder:text-[#A9A092]"
+          />
+          <button
+            onClick={() => setBarnNamn(namnInput.trim())}
+            className="shrink-0 text-xs font-medium bg-[#2D2A26] text-white px-3 py-1.5 rounded-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#E8743B]"
+          >
+            Spara
+          </button>
+        </div>
+        <div className="flex items-center gap-2.5 mt-2.5 pt-2.5 border-t border-[#F0E9DB]">
+          <span className="w-9 h-9 rounded-full bg-[#EAF1E8] flex items-center justify-center text-lg shrink-0">
+            🎂
+          </span>
+          <input
+            type="date"
+            value={fodelsedatumInput}
+            onChange={(e) => setFodelsedatumInput(e.target.value)}
+            max={todayISO()}
+            className="flex-1 min-w-0 max-w-full box-border appearance-none bg-transparent text-sm focus-visible:outline-none"
+          />
+          {alderIVeckor != null && (
+            <span className="shrink-0 text-xs text-[#A9A092]">{formatAlder(alderIVeckor)}</span>
+          )}
+          <button
+            onClick={() => setBarnFodelsedatum(fodelsedatumInput)}
+            className="shrink-0 text-xs font-medium bg-[#2D2A26] text-white px-3 py-1.5 rounded-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#E8743B]"
+          >
+            Spara
+          </button>
+        </div>
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-3 gap-2.5 mb-5">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mb-5">
         <StatCard emoji="🥕" varde={`${provadeSmaker.length}/${SMAK_FORSLAG.length}`} label="Smaker" />
         <StatCard emoji="🥚" varde={`${allergenLogg.length}/${ALLERGEN_FORSLAG.length}`} label="Allergener" />
         <StatCard emoji="🍽️" varde={totaltAntalMaltider} label="Måltider" />
+        <StatCard emoji="😴" varde={totaltAntalSomnpass} label="Sömnpass" />
       </div>
 
       {/* Idag */}
@@ -316,6 +462,17 @@ function OversiktVy({ barnNamn, setBarnNamn, provadeSmaker, allergenLogg, totalt
           </ul>
         )}
       </div>
+
+      {/* Nästa sömnpass */}
+      {somnprognos && (
+        <div className="bg-[#EAF1E8] border border-[#5B7B5A]/20 rounded-2xl px-4 py-3.5 flex gap-2.5 mb-5">
+          <AlertCircle className="w-4 h-4 text-[#5B7B5A] shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-medium text-[#2D2A26]">{somnprognos.label}</p>
+            <p className="text-sm text-[#5B4A3A] mt-0.5">Ungefär kl {formatKlockslag(somnprognos.tid)}</p>
+          </div>
+        </div>
+      )}
 
       {/* Nästa allergen */}
       {nastaAllergen && (
@@ -481,6 +638,327 @@ function DagbokVy({ dagsloggar, setDagsloggar }) {
                       </button>
                     </div>
                   ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---- Sömn ----
+// Sömnpoäng och nästa-sömnpass-prognos bygger på grova, allmänna riktvärden
+// (liknande de flesta sömnkonsulters wake-window-tabeller) — inte en klinisk
+// bedömning av det egna barnet. Se SOMN_SCHEMA-kommentaren ovan.
+
+function SomnVy({ somnloggar, setSomnloggar, alderIVeckor }) {
+  const [, tick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => tick((n) => n + 1), 30000);
+    return () => clearInterval(id);
+  }, []);
+
+  const nuTimme = new Date().getHours();
+  const [nyTyp, setNyTyp] = useState(nuTimme >= 19 || nuTimme < 6 ? "natt" : "pass");
+  const [redigerarId, setRedigerarId] = useState(null);
+  const [redigerStart, setRedigerStart] = useState("");
+  const [redigerSlut, setRedigerSlut] = useState("");
+
+  const aktivt = somnloggar.find((s) => !s.slut);
+  const schema = alderIVeckor != null ? getSomnSchema(alderIVeckor) : null;
+  const somnprognos = berakSomnprognos(somnloggar, alderIVeckor);
+  const avslutade = somnloggar.filter((s) => s.slut);
+
+  const laggBarnet = () => {
+    const post = { id: crypto.randomUUID(), typ: nyTyp, start: new Date().toISOString(), slut: null };
+    setSomnloggar([post, ...somnloggar]);
+  };
+
+  const barnetVaknade = () => {
+    setSomnloggar(
+      somnloggar.map((s) => (s.id === aktivt.id ? { ...s, slut: new Date().toISOString() } : s))
+    );
+  };
+
+  const taBort = (id) => {
+    setSomnloggar(somnloggar.filter((s) => s.id !== id));
+  };
+
+  const borjaRedigera = (post) => {
+    setRedigerarId(post.id);
+    setRedigerStart(toLocalTimeInputValue(post.start));
+    setRedigerSlut(post.slut ? toLocalTimeInputValue(post.slut) : "");
+  };
+
+  const sparaRedigering = (post) => {
+    const nyStart = combineDateAndTime(post.start, redigerStart);
+    const nySlut = post.slut ? combineDateAndTime(post.slut, redigerSlut) : null;
+    if (nySlut && new Date(nySlut) <= new Date(nyStart)) return;
+    setSomnloggar(
+      somnloggar.map((s) => (s.id === post.id ? { ...s, start: nyStart, slut: nySlut } : s))
+    );
+    setRedigerarId(null);
+  };
+
+  // Sömnpoäng idag: andel av ungefärligt rekommenderat dygnsbehov
+  const idagISO = todayISO();
+  const minuterIdag =
+    avslutade
+      .filter((s) => s.start.slice(0, 10) === idagISO)
+      .reduce((sum, s) => sum + (new Date(s.slut) - new Date(s.start)) / 60000, 0) +
+    (aktivt && aktivt.start.slice(0, 10) === idagISO
+      ? (Date.now() - new Date(aktivt.start).getTime()) / 60000
+      : 0);
+  const somnpoangIdag = schema ? Math.min(100, Math.round((minuterIdag / 60 / schema.rekommenderadTotalTimmar) * 100)) : null;
+
+  // Statistik senaste 7 dagarna
+  const senaste7Dagar = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date();
+    d.setUTCDate(d.getUTCDate() - (6 - i));
+    return d.toISOString().slice(0, 10);
+  });
+  const timmarPerDag = senaste7Dagar.map((dag) =>
+    avslutade
+      .filter((s) => s.start.slice(0, 10) === dag)
+      .reduce((sum, s) => sum + (new Date(s.slut) - new Date(s.start)) / 60000, 0) / 60
+  );
+  const maxSkala = Math.max(schema?.rekommenderadTotalTimmar || 0, ...timmarPerDag, 1) * 1.15;
+
+  // Historik grupperad per dag
+  const perDag = {};
+  for (const s of avslutade) {
+    const dag = s.start.slice(0, 10);
+    (perDag[dag] ||= []).push(s);
+  }
+  const alleDatum = Object.keys(perDag).sort((a, b) => (a < b ? 1 : -1));
+
+  return (
+    <div>
+      {schema && (
+        <div className="bg-[#EAF1E8] border border-[#5B7B5A]/20 rounded-2xl px-4 py-3.5 mb-5">
+          <p className="text-sm font-medium text-[#2D2A26]">
+            {formatAlder(alderIVeckor)} — {schema.beskrivning}
+          </p>
+          <p className="text-xs text-[#5B4A3A] mt-1">
+            Ungefärliga riktvärden, inte en exakt bedömning av just ditt barn — stäm av med BVC om
+            sömnen oroar dig.
+          </p>
+        </div>
+      )}
+      {!schema && (
+        <div className="bg-[#EAF1E8] border border-[#5B7B5A]/20 rounded-2xl px-4 py-3.5 mb-5 flex gap-2.5">
+          <AlertCircle className="w-4 h-4 text-[#5B7B5A] shrink-0 mt-0.5" />
+          <p className="text-sm text-[#5B4A3A]">
+            Fyll i barnets födelsedatum under Översikt för att få en prognos för nästa sömnpass.
+          </p>
+        </div>
+      )}
+
+      {/* Start/stopp */}
+      <div className="bg-white rounded-2xl border border-[#E8DFCC] p-4 mb-5">
+        {aktivt ? (
+          <div className="text-center">
+            <p className="text-xs uppercase tracking-wide text-[#A9A092] mb-1">
+              {aktivt.typ === "natt" ? "Natt" : "Tuppplur"} sedan {formatKlockslag(aktivt.start)}
+            </p>
+            <p className="font-display text-2xl font-semibold mb-4">
+              {formatVaraktighet((Date.now() - new Date(aktivt.start).getTime()) / 60000)}
+            </p>
+            <button
+              onClick={barnetVaknade}
+              className="w-full flex items-center justify-center gap-1.5 bg-[#E8743B] text-white rounded-xl py-2.5 text-sm font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#E8743B]"
+            >
+              <Sun className="w-4 h-4" /> Barnet vaknade
+            </button>
+          </div>
+        ) : (
+          <div>
+            <div className="flex gap-2 mb-3">
+              <button
+                onClick={() => setNyTyp("pass")}
+                className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-sm font-medium border ${
+                  nyTyp === "pass"
+                    ? "bg-[#5B7B5A] text-white border-[#5B7B5A]"
+                    : "bg-[#FBF6EF] text-[#6B6358] border-[#E8DFCC]"
+                }`}
+              >
+                <Sun className="w-3.5 h-3.5" /> Tuppplur
+              </button>
+              <button
+                onClick={() => setNyTyp("natt")}
+                className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-sm font-medium border ${
+                  nyTyp === "natt"
+                    ? "bg-[#5B7B5A] text-white border-[#5B7B5A]"
+                    : "bg-[#FBF6EF] text-[#6B6358] border-[#E8DFCC]"
+                }`}
+              >
+                <Moon className="w-3.5 h-3.5" /> Natt
+              </button>
+            </div>
+            <button
+              onClick={laggBarnet}
+              className="w-full flex items-center justify-center gap-1.5 bg-[#E8743B] text-white rounded-xl py-2.5 text-sm font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#E8743B]"
+            >
+              <Moon className="w-4 h-4" /> Lägg barnet
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Nästa sömnpass */}
+      {!aktivt && somnprognos && (
+        <div className="bg-[#EAF1E8] border border-[#5B7B5A]/20 rounded-2xl px-4 py-3.5 mb-5 flex gap-2.5">
+          <AlertCircle className="w-4 h-4 text-[#5B7B5A] shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-medium">{somnprognos.label}</p>
+            <p className="text-xs text-[#5B4A3A] mt-0.5">Ungefär kl {formatKlockslag(somnprognos.tid)}</p>
+          </div>
+        </div>
+      )}
+
+      {/* Sömnpoäng idag */}
+      {somnpoangIdag != null && (
+        <div className="bg-white rounded-2xl border border-[#E8DFCC] p-4 mb-5 flex items-center gap-3">
+          <span className="text-2xl">💤</span>
+          <div className="flex-1">
+            <p className="font-display text-lg font-semibold">{somnpoangIdag}% av rekommenderat idag</p>
+            <p className="text-xs text-[#A9A092] mt-0.5">
+              {formatVaraktighet(minuterIdag)} sovet av ~{schema.rekommenderadTotalTimmar} h riktvärde
+            </p>
+            <div className="h-1.5 bg-[#F0E9DB] rounded-full overflow-hidden mt-1.5 max-w-[200px]">
+              <div
+                className="h-full bg-[#5B7B5A] rounded-full transition-all"
+                style={{ width: `${somnpoangIdag}%` }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Statistik senaste 7 dagarna */}
+      <div className="bg-white rounded-2xl border border-[#E8DFCC] p-4 mb-5">
+        <h3 className="font-display text-base font-semibold mb-1">Senaste 7 dagarna</h3>
+        {schema && (
+          <p className="text-xs text-[#A9A092] mb-3">
+            Streckad linje = ungefärligt riktvärde ({schema.rekommenderadTotalTimmar} h/dygn)
+          </p>
+        )}
+        <div className="relative h-28 flex items-end gap-2 mt-2">
+          {schema && (
+            <div
+              className="absolute left-0 right-0 border-t border-dashed border-[#A9A092]"
+              style={{ bottom: `${Math.min(100, (schema.rekommenderadTotalTimmar / maxSkala) * 100)}%` }}
+            />
+          )}
+          {senaste7Dagar.map((dag, i) => (
+            <div key={dag} className="flex-1 h-full flex flex-col items-center justify-end gap-1 relative z-10">
+              {timmarPerDag[i] > 0 && (
+                <span className="text-[10px] text-[#6B6358]">{timmarPerDag[i].toFixed(1)}h</span>
+              )}
+              <div
+                className="w-full max-w-[28px] bg-[#5B7B5A] rounded-t-md"
+                style={{ height: `${Math.max(timmarPerDag[i] > 0 ? 3 : 0, (timmarPerDag[i] / maxSkala) * 100)}%` }}
+              />
+            </div>
+          ))}
+        </div>
+        <div className="flex gap-2 mt-1.5">
+          {senaste7Dagar.map((dag) => (
+            <span key={dag} className="flex-1 text-center text-[10px] text-[#A9A092] capitalize">
+              {new Date(dag + "T12:00:00").toLocaleDateString("sv-SE", { weekday: "short" })}
+            </span>
+          ))}
+        </div>
+      </div>
+
+      <h3 className="font-display text-base font-semibold mb-3">Historik</h3>
+      {alleDatum.length === 0 ? (
+        <p className="text-[#A9A092] text-sm text-center py-8">Inget loggat än.</p>
+      ) : (
+        <div className="space-y-4">
+          {alleDatum.map((d) => (
+            <div key={d}>
+              <p className="text-xs font-semibold uppercase tracking-wide text-[#A9A092] mb-2 px-1 capitalize">
+                {formatSwedishDateShort(d)}
+              </p>
+              <div className="bg-white rounded-2xl border border-[#E8DFCC] divide-y divide-[#F0E9DB]">
+                {[...perDag[d]]
+                  .sort((a, b) => new Date(b.start) - new Date(a.start))
+                  .map((post) =>
+                    redigerarId === post.id ? (
+                      <div key={post.id} className="px-4 py-3">
+                        <div className="flex gap-2 mb-2">
+                          <div className="flex-1 min-w-0">
+                            <label className="block text-[10px] font-medium text-[#6B6358] mb-1">Somnade</label>
+                            <input
+                              type="time"
+                              value={redigerStart}
+                              onChange={(e) => setRedigerStart(e.target.value)}
+                              className="w-full min-w-0 max-w-full box-border appearance-none bg-[#FBF6EF] border border-[#E8DFCC] rounded-xl px-2.5 py-1.5 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#E8743B]"
+                            />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <label className="block text-[10px] font-medium text-[#6B6358] mb-1">Vaknade</label>
+                            <input
+                              type="time"
+                              value={redigerSlut}
+                              onChange={(e) => setRedigerSlut(e.target.value)}
+                              className="w-full min-w-0 max-w-full box-border appearance-none bg-[#FBF6EF] border border-[#E8DFCC] rounded-xl px-2.5 py-1.5 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#E8743B]"
+                            />
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => setRedigerarId(null)}
+                            className="flex-1 text-xs font-medium bg-[#FBF6EF] border border-[#E8DFCC] rounded-full py-1.5"
+                          >
+                            Avbryt
+                          </button>
+                          <button
+                            onClick={() => sparaRedigering(post)}
+                            className="flex-1 text-xs font-medium bg-[#2D2A26] text-white rounded-full py-1.5"
+                          >
+                            Spara
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div key={post.id} className="flex items-start justify-between px-4 py-3">
+                        <div className="flex items-start gap-2.5">
+                          {post.typ === "natt" ? (
+                            <Moon className="w-4 h-4 text-[#5B7B5A] shrink-0 mt-0.5" />
+                          ) : (
+                            <Sun className="w-4 h-4 text-[#E8743B] shrink-0 mt-0.5" />
+                          )}
+                          <div>
+                            <p className="text-sm">
+                              {formatKlockslag(post.start)} – {formatKlockslag(post.slut)}
+                            </p>
+                            <p className="text-xs text-[#A9A092] mt-0.5">
+                              {formatVaraktighet((new Date(post.slut) - new Date(post.start)) / 60000)}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button
+                            onClick={() => borjaRedigera(post)}
+                            className="text-[#A9A092] hover:text-[#2D2A26] p-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#E8743B] rounded"
+                            aria-label="Redigera"
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => taBort(post.id)}
+                            className="text-[#A9A092] hover:text-[#C75450] p-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#E8743B] rounded"
+                            aria-label="Ta bort"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    )
+                  )}
               </div>
             </div>
           ))}
