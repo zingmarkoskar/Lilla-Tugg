@@ -378,21 +378,21 @@ function DagbokVy({ dagsloggar, setDagsloggar }) {
   return (
     <div>
       <div className="bg-white rounded-2xl border border-[#E8DFCC] p-4 mb-6">
-        <div className="grid grid-cols-2 gap-3 mb-3">
-          <div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+          <div className="min-w-0">
             <label className="block text-xs font-medium text-[#6B6358] mb-1.5">Datum</label>
             <input
               type="date"
               value={datum}
               onChange={(e) => setDatum(e.target.value)}
-              className="w-full bg-[#FBF6EF] border border-[#E8DFCC] rounded-xl px-3 py-2 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#E8743B]"
+              className="w-full min-w-0 bg-[#FBF6EF] border border-[#E8DFCC] rounded-xl px-3 py-2 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#E8743B]"
             />
           </div>
-          <div className="relative">
+          <div className="relative min-w-0">
             <label className="block text-xs font-medium text-[#6B6358] mb-1.5">Måltid</label>
             <button
               onClick={() => setMaltidOppen(!maltidOppen)}
-              className="w-full flex items-center justify-between bg-[#FBF6EF] border border-[#E8DFCC] rounded-xl px-3 py-2 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#E8743B]"
+              className="w-full min-w-0 flex items-center justify-between bg-[#FBF6EF] border border-[#E8DFCC] rounded-xl px-3 py-2 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#E8743B]"
             >
               {nyMaltid}
               <ChevronDown className="w-3.5 h-3.5 text-[#A9A092]" />
@@ -712,7 +712,7 @@ function AllergenVy({ logg, setLogg }) {
               <select
                 value={reaktionsval[allergen] || "ingen"}
                 onChange={(e) => setReaktionsval({ ...reaktionsval, [allergen]: e.target.value })}
-                className="flex-1 bg-[#FBF6EF] border border-[#E8DFCC] rounded-xl px-2.5 py-2 text-xs focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#E8743B]"
+                className="flex-1 min-w-0 bg-[#FBF6EF] border border-[#E8DFCC] rounded-xl px-2.5 py-2 text-xs focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#E8743B]"
               >
                 <option value="ingen">Ingen reaktion</option>
                 <option value="mild">Mild reaktion</option>
@@ -722,7 +722,7 @@ function AllergenVy({ logg, setLogg }) {
                 value={kommentarval[allergen] || ""}
                 onChange={(e) => setKommentarval({ ...kommentarval, [allergen]: e.target.value })}
                 placeholder="Anteckning (valfri)"
-                className="flex-1 bg-[#FBF6EF] border border-[#E8DFCC] rounded-xl px-2.5 py-2 text-xs focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#E8743B] placeholder:text-[#A9A092]"
+                className="flex-1 min-w-0 bg-[#FBF6EF] border border-[#E8DFCC] rounded-xl px-2.5 py-2 text-xs focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#E8743B] placeholder:text-[#A9A092]"
               />
             </div>
           </div>
