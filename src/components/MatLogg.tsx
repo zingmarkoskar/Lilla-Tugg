@@ -168,7 +168,7 @@ export default function MatLogg() {
           )}
         </header>
 
-        <nav className="flex gap-1 mb-6 bg-[#F0E9DB] p-1 rounded-2xl overflow-x-auto" role="tablist">
+        <nav className="flex gap-1 mb-6 bg-[#F0E9DB] p-1 rounded-2xl" role="tablist">
           {[
             { key: "oversikt", label: "Översikt" },
             { key: "dagbok", label: "Dagbok" },
@@ -180,7 +180,7 @@ export default function MatLogg() {
               role="tab"
               aria-selected={flik === t.key}
               onClick={() => setFlik(t.key)}
-              className={`shrink-0 px-4 py-2.5 rounded-xl text-sm font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#E8743B] ${
+              className={`flex-1 min-w-0 truncate px-1.5 py-2.5 rounded-xl text-[13px] sm:text-sm font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#E8743B] ${
                 flik === t.key ? "bg-white text-[#2D2A26] shadow-sm" : "text-[#6B6358] hover:text-[#2D2A26]"
               }`}
             >
