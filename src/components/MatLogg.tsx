@@ -13,6 +13,8 @@ import {
   Sun,
   Pencil,
 } from "lucide-react";
+import { doc, setDoc, onSnapshot } from "firebase/firestore";
+import { db } from "../firebase";
 
 import hjalteBild1 from "../assets/hjaltar/niva-1.png";
 import hjalteBild2 from "../assets/hjaltar/niva-2.png";
@@ -164,58 +166,131 @@ const formatSwedishDateShort = (isoDate) => {
 };
 
 // ---- Storage hook ----
-// Persists to window.storage (personal, not shared) with fallback to in-memory state.
+// Delad lagring via Firestore, ett dokument per nyckel under families/{familjekod}/entries/{key}.
+// Realtidslyssning gör att partnerns ändringar dyker upp automatiskt. Faller tillbaka till
+// enbart in-memory state (storageOk=false) om Firestore inte går att nå.
 
-function usePersistentState(key, initialValue) {
+function usePersistentState(key, initialValue, familjekod) {
   const [value, setValue] = useState(initialValue);
   const [loaded, setLoaded] = useState(false);
   const [storageOk, setStorageOk] = useState(true);
 
   useEffect(() => {
+    if (!familjekod) return;
     let mounted = true;
-    (async () => {
-      try {
-        const result = await window.storage.get(key, false);
-        if (mounted) {
-          if (result && result.value) setValue(JSON.parse(result.value));
-          setLoaded(true);
-        }
-      } catch (e) {
-        if (mounted) setLoaded(true);
+    let harFattSvar = false;
+    setLoaded(false);
+    const ref = doc(db, "families", familjekod, "entries", key);
+    const unsubscribe = onSnapshot(
+      ref,
+      (snap) => {
+        if (!mounted) return;
+        harFattSvar = true;
+        if (snap.exists() && "value" in snap.data()) setValue(snap.data().value);
+        setLoaded(true);
+        setStorageOk(true);
+      },
+      () => {
+        if (!mounted) return;
+        harFattSvar = true;
+        setLoaded(true);
+        setStorageOk(false);
       }
-    })();
+    );
+    // Säkerhetsnät: om anslutningen hänger sig helt utan att varken lyckas eller
+    // ge ett fel (t.ex. blockerad brandvägg) ska appen ändå visas, inte snurra evigt.
+    const timeout = setTimeout(() => {
+      if (mounted && !harFattSvar) {
+        setLoaded(true);
+        setStorageOk(false);
+      }
+    }, 8000);
     return () => {
       mounted = false;
+      clearTimeout(timeout);
+      unsubscribe();
     };
-  }, [key]);
+  }, [key, familjekod]);
 
   const persist = useCallback(
     async (newValue) => {
       setValue(newValue);
+      if (!familjekod) return;
       try {
-        const result = await window.storage.set(key, JSON.stringify(newValue), false);
-        if (!result) setStorageOk(false);
+        await setDoc(doc(db, "families", familjekod, "entries", key), { value: newValue });
       } catch (e) {
         setStorageOk(false);
       }
     },
-    [key]
+    [key, familjekod]
   );
 
   return [value, persist, loaded, storageOk];
 }
 
+// ---- Familjekod ----
+// Vilken delad familj den här enheten är kopplad till. Sparas bara lokalt (per enhet) —
+// det är koden själv, inte kontot, som avgör vilken delad loggbok man ser.
+
+function useFamiljekod() {
+  const [familjekod, setFamiljekodState] = useState(() => {
+    try {
+      return localStorage.getItem("familjekod") || "";
+    } catch (e) {
+      return "";
+    }
+  });
+
+  const setFamiljekod = (kod) => {
+    try {
+      if (kod) localStorage.setItem("familjekod", kod);
+      else localStorage.removeItem("familjekod");
+    } catch (e) {
+      // ignorera — faller tillbaka till att fråga igen nästa gång
+    }
+    setFamiljekodState(kod);
+  };
+
+  return [familjekod, setFamiljekod];
+}
+
+const KODALFABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // utan 0/O/1/I/L för läsbarhet
+
+function genereraFamiljekod() {
+  const slumptal = new Uint32Array(8);
+  crypto.getRandomValues(slumptal);
+  let kod = "";
+  for (let i = 0; i < 8; i++) {
+    kod += KODALFABET[slumptal[i] % KODALFABET.length];
+    if (i === 3) kod += "-";
+  }
+  return kod;
+}
+
 // ---- Main component ----
 
 export default function MatLogg() {
+  const [familjekod, setFamiljekod] = useFamiljekod();
   const [flik, setFlik] = useState("oversikt");
 
-  const [barnNamn, setBarnNamn, namnLoaded] = usePersistentState("barn-namn", "");
-  const [barnFodelsedatum, setBarnFodelsedatum, fodelsedatumLoaded] = usePersistentState("barn-fodelsedatum", "");
-  const [provadeSmaker, setProvadeSmaker, smakerLoaded] = usePersistentState("provade-smaker-v2", []);
-  const [allergenLogg, setAllergenLogg, allergenLoaded] = usePersistentState("allergen-logg-v2", []);
-  const [dagsloggar, setDagsloggar, dagsloggarLoaded, storageOk] = usePersistentState("dagsloggar-v2", {});
-  const [somnloggar, setSomnloggar, somnloggarLoaded] = usePersistentState("somn-loggar-v1", []);
+  const [barnNamn, setBarnNamn, namnLoaded] = usePersistentState("barn-namn", "", familjekod);
+  const [barnFodelsedatum, setBarnFodelsedatum, fodelsedatumLoaded] = usePersistentState(
+    "barn-fodelsedatum",
+    "",
+    familjekod
+  );
+  const [provadeSmaker, setProvadeSmaker, smakerLoaded] = usePersistentState("provade-smaker-v2", [], familjekod);
+  const [allergenLogg, setAllergenLogg, allergenLoaded] = usePersistentState("allergen-logg-v2", [], familjekod);
+  const [dagsloggar, setDagsloggar, dagsloggarLoaded, storageOk] = usePersistentState(
+    "dagsloggar-v2",
+    {},
+    familjekod
+  );
+  const [somnloggar, setSomnloggar, somnloggarLoaded] = usePersistentState("somn-loggar-v1", [], familjekod);
+
+  if (!familjekod) {
+    return <FamiljekodVy onKlar={setFamiljekod} />;
+  }
 
   const allLoaded =
     namnLoaded && fodelsedatumLoaded && smakerLoaded && allergenLoaded && dagsloggarLoaded && somnloggarLoaded;
@@ -258,6 +333,19 @@ export default function MatLogg() {
           </h1>
           <p className="text-[#6B6358] text-sm mt-1">
             Logga måltider och sömn, upptäck smaker, introducera allergener.
+          </p>
+          <p className="text-xs text-[#A9A092] mt-2">
+            Familj: <span className="font-medium text-[#6B6358]">{familjekod}</span>{" "}
+            <button
+              onClick={() => {
+                if (confirm("Lämna den här familjen på den här enheten? Du kan gå med igen med koden.")) {
+                  setFamiljekod("");
+                }
+              }}
+              className="underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#E8743B] rounded"
+            >
+              byt
+            </button>
           </p>
           {!storageOk && (
             <p className="text-[#C75450] text-xs mt-2 flex items-center gap-1">
@@ -308,6 +396,92 @@ export default function MatLogg() {
         )}
         {flik === "smaker" && <SmakerVy provade={provadeSmaker} setProvade={setProvadeSmaker} />}
         {flik === "allergen" && <AllergenVy logg={allergenLogg} setLogg={setAllergenLogg} />}
+      </div>
+    </div>
+  );
+}
+
+// ---- Familjekod-onboarding ----
+
+function FamiljekodVy({ onKlar }) {
+  const [lage, setLage] = useState(null); // null | "skapa" | "ansluta"
+  const [nyKod] = useState(() => genereraFamiljekod());
+  const [inputKod, setInputKod] = useState("");
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-[#FBF6EF] px-5">
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400..700&family=Inter:wght@400;500;600&display=swap');
+        .font-display { font-family: 'Fraunces', serif; font-optical-sizing: auto; }
+        .font-body { font-family: 'Inter', sans-serif; }
+      `}</style>
+      <div className="font-body max-w-sm w-full">
+        <h1 className="font-display text-2xl font-semibold text-center mb-2">Småbarnsmat</h1>
+        <p className="text-[#6B6358] text-sm text-center mb-6">
+          Skapa en familj eller gå med i en, så delar du och din partner samma loggbok.
+        </p>
+
+        {lage === null && (
+          <div className="space-y-3">
+            <button
+              onClick={() => setLage("skapa")}
+              className="w-full bg-[#E8743B] text-white rounded-xl py-3 text-sm font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#E8743B]"
+            >
+              Skapa ny familj
+            </button>
+            <button
+              onClick={() => setLage("ansluta")}
+              className="w-full bg-white border border-[#E8DFCC] rounded-xl py-3 text-sm font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#E8743B]"
+            >
+              Jag har en familjekod
+            </button>
+          </div>
+        )}
+
+        {lage === "skapa" && (
+          <div className="bg-white border border-[#E8DFCC] rounded-2xl p-5 text-center">
+            <p className="text-xs text-[#6B6358] mb-2">Er familjekod</p>
+            <p className="font-display text-2xl font-semibold tracking-wide mb-4">{nyKod}</p>
+            <p className="text-xs text-[#A9A092] mb-4">
+              Spara den här koden — din partner skriver in exakt samma kod för att se samma loggbok.
+            </p>
+            <button
+              onClick={() => onKlar(nyKod)}
+              className="w-full bg-[#E8743B] text-white rounded-xl py-2.5 text-sm font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#E8743B]"
+            >
+              Jag har sparat koden, fortsätt
+            </button>
+          </div>
+        )}
+
+        {lage === "ansluta" && (
+          <div className="bg-white border border-[#E8DFCC] rounded-2xl p-5">
+            <label className="block text-xs font-medium text-[#6B6358] mb-1.5">Familjekod</label>
+            <input
+              value={inputKod}
+              onChange={(e) => setInputKod(e.target.value.toUpperCase())}
+              onKeyDown={(e) => e.key === "Enter" && inputKod.trim() && onKlar(inputKod.trim())}
+              placeholder="XXXX-XXXX"
+              className="w-full bg-[#FBF6EF] border border-[#E8DFCC] rounded-xl px-3 py-2 text-sm mb-3 text-center tracking-wide focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#E8743B] placeholder:text-[#A9A092]"
+            />
+            <button
+              onClick={() => inputKod.trim() && onKlar(inputKod.trim())}
+              disabled={!inputKod.trim()}
+              className="w-full bg-[#E8743B] text-white rounded-xl py-2.5 text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#E8743B]"
+            >
+              Gå med
+            </button>
+          </div>
+        )}
+
+        {lage !== null && (
+          <button
+            onClick={() => setLage(null)}
+            className="w-full text-xs text-[#A9A092] mt-4 text-center focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#E8743B] rounded"
+          >
+            Tillbaka
+          </button>
+        )}
       </div>
     </div>
   );
