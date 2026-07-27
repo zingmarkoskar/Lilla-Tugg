@@ -429,7 +429,7 @@ function OversiktVy({
             value={barnFodelsedatum}
             onChange={(e) => setBarnFodelsedatum(e.target.value)}
             max={todayISO()}
-            className="flex-1 min-w-0 max-w-full box-border appearance-none bg-transparent text-sm focus-visible:outline-none"
+            className="flex-1 min-w-0 max-w-full box-border bg-[#FBF6EF] border border-[#E8DFCC] rounded-xl px-3 py-2 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#E8743B]"
           />
           {alderIVeckor != null && (
             <span className="shrink-0 text-xs text-[#A9A092]">{formatAlder(alderIVeckor)}</span>
