@@ -329,7 +329,7 @@ export default function MatLogg() {
       <div className="font-body max-w-2xl mx-auto px-5 pt-8 pb-24">
         <header className="mb-6">
           <h1 className="font-display text-[2rem] leading-tight font-semibold text-[#2D2A26]">
-            Småbarnsmat
+            Lilla Tugg
           </h1>
           <p className="text-[#6B6358] text-sm mt-1">
             Logga måltider och sömn, upptäck smaker, introducera allergener.
@@ -416,7 +416,7 @@ function FamiljekodVy({ onKlar }) {
         .font-body { font-family: 'Inter', sans-serif; }
       `}</style>
       <div className="font-body max-w-sm w-full">
-        <h1 className="font-display text-2xl font-semibold text-center mb-2">Småbarnsmat</h1>
+        <h1 className="font-display text-2xl font-semibold text-center mb-2">Lilla Tugg</h1>
         <p className="text-[#6B6358] text-sm text-center mb-6">
           Skapa en familj eller gå med i en, så delar du och din partner samma loggbok.
         </p>
