@@ -345,7 +345,6 @@ function OversiktVy({
   somnloggar,
 }) {
   const [namnInput, setNamnInput] = useState(barnNamn);
-  const [fodelsedatumInput, setFodelsedatumInput] = useState(barnFodelsedatum);
   const { aktuell, nasta } = getNiva(poang);
 
   const idagISO = todayISO();
@@ -427,20 +426,14 @@ function OversiktVy({
           </span>
           <input
             type="date"
-            value={fodelsedatumInput}
-            onChange={(e) => setFodelsedatumInput(e.target.value)}
+            value={barnFodelsedatum}
+            onChange={(e) => setBarnFodelsedatum(e.target.value)}
             max={todayISO()}
             className="flex-1 min-w-0 max-w-full box-border appearance-none bg-transparent text-sm focus-visible:outline-none"
           />
           {alderIVeckor != null && (
             <span className="shrink-0 text-xs text-[#A9A092]">{formatAlder(alderIVeckor)}</span>
           )}
-          <button
-            onClick={() => setBarnFodelsedatum(fodelsedatumInput)}
-            className="shrink-0 text-xs font-medium bg-[#2D2A26] text-white px-3 py-1.5 rounded-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#E8743B]"
-          >
-            Spara
-          </button>
         </div>
       </div>
 
