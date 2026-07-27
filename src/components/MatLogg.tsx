@@ -47,7 +47,7 @@ const ALLERGEN_FORSLAG = [
   "Senap",
 ];
 
-const MALTIDER = ["Frukost", "Mellanmål FM", "Lunch", "Mellanmål EM", "Middag", "Kvällsmål"];
+const MALTIDER = ["Frukost", "Mellanmål FM", "Lunch", "Mellanmål EM", "Middag", "Kvällsmål", "D-droppar"];
 
 // Ungefärliga riktvärden för vakna-fönster (timmar) per ålder — inte en exakt vetenskaplig
 // algoritm, utan en grov fingervisning likt de flesta sömnkonsulters riktmärken.
@@ -297,7 +297,6 @@ export default function MatLogg() {
             alderIVeckor={alderIVeckor}
             provadeSmaker={provadeSmaker}
             allergenLogg={allergenLogg}
-            totaltAntalMaltider={totaltAntalMaltider}
             poang={poang}
             dagsloggar={dagsloggar}
             somnloggar={somnloggar}
@@ -339,7 +338,6 @@ function OversiktVy({
   alderIVeckor,
   provadeSmaker,
   allergenLogg,
-  totaltAntalMaltider,
   poang,
   dagsloggar,
   somnloggar,
@@ -349,7 +347,6 @@ function OversiktVy({
 
   const idagISO = todayISO();
   const dagensPoster = dagsloggar[idagISO] || [];
-  const totaltAntalSomnpass = somnloggar.filter((s) => s.slut).length;
 
   const nastaAllergen = ALLERGEN_FORSLAG.find(
     (a) => !allergenLogg.some((l) => l.allergen === a)
@@ -437,17 +434,9 @@ function OversiktVy({
         </div>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mb-5">
-        <StatCard emoji="🥕" varde={`${provadeSmaker.length}/${SMAK_FORSLAG.length}`} label="Smaker" />
-        <StatCard emoji="🥚" varde={`${allergenLogg.length}/${ALLERGEN_FORSLAG.length}`} label="Allergener" />
-        <StatCard emoji="🍽️" varde={totaltAntalMaltider} label="Måltider" />
-        <StatCard emoji="😴" varde={totaltAntalSomnpass} label="Sömnpass" />
-      </div>
-
-      {/* Idag */}
+      {/* Översikt idag */}
       <div className="bg-white rounded-2xl border border-[#E8DFCC] p-4 mb-5">
-        <h3 className="font-display text-base font-semibold mb-2.5">Idag</h3>
+        <h3 className="font-display text-base font-semibold mb-2.5">Översikt idag</h3>
         {dagensHandelser.length === 0 ? (
           <p className="text-[#A9A092] text-sm">Inget loggat ännu idag.</p>
         ) : (
@@ -488,6 +477,13 @@ function OversiktVy({
           </div>
         </div>
       )}
+
+      {/* Översikt totalt */}
+      <h3 className="font-display text-base font-semibold mb-2.5">Översikt totalt</h3>
+      <div className="grid grid-cols-2 gap-2.5 mb-5">
+        <StatCard emoji="🥕" varde={`${provadeSmaker.length}/${SMAK_FORSLAG.length}`} label="Smaker" />
+        <StatCard emoji="🥚" varde={`${allergenLogg.length}/${ALLERGEN_FORSLAG.length}`} label="Allergener" />
+      </div>
 
       {/* Nästa allergen */}
       {nastaAllergen && (
