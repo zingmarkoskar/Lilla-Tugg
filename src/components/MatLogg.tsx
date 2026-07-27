@@ -358,6 +358,12 @@ function OversiktVy({
 
   const somnprognos = berakSomnprognos(somnloggar, alderIVeckor);
 
+  const dagensSomn = somnloggar.filter((s) => s.start.slice(0, 10) === idagISO);
+  const dagensHandelser = [
+    ...dagensPoster.map((p) => ({ tid: p.tid, typ: "matlogg", data: p })),
+    ...dagensSomn.map((s) => ({ tid: s.start, typ: "somn", data: s })),
+  ].sort((a, b) => new Date(a.tid) - new Date(b.tid));
+
   const progressMot = nasta
     ? Math.min(100, Math.round(((poang - aktuell.poangKrav) / (nasta.poangKrav - aktuell.poangKrav)) * 100))
     : 100;
@@ -449,14 +455,30 @@ function OversiktVy({
       {/* Idag */}
       <div className="bg-white rounded-2xl border border-[#E8DFCC] p-4 mb-5">
         <h3 className="font-display text-base font-semibold mb-2.5">Idag</h3>
-        {dagensPoster.length === 0 ? (
-          <p className="text-[#A9A092] text-sm">Inga loggade måltider ännu idag.</p>
+        {dagensHandelser.length === 0 ? (
+          <p className="text-[#A9A092] text-sm">Inget loggat ännu idag.</p>
         ) : (
-          <ul className="space-y-1.5">
-            {dagensPoster.map((p) => (
-              <li key={p.id} className="text-sm flex gap-2">
-                <span className="text-[#E8743B] font-medium shrink-0">{p.maltid}:</span>
-                <span>{p.ratt}</span>
+          <ul className="space-y-2">
+            {dagensHandelser.map((h) => (
+              <li key={h.data.id} className="text-sm flex gap-2.5">
+                <span className="text-xs text-[#A9A092] shrink-0 w-10 pt-0.5">{formatKlockslag(h.tid)}</span>
+                {h.typ === "matlogg" ? (
+                  <span>
+                    <span className="text-[#E8743B] font-medium">{h.data.maltid}:</span> {h.data.ratt}
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5">
+                    {h.data.typ === "natt" ? (
+                      <Moon className="w-3.5 h-3.5 text-[#5B7B5A] shrink-0" />
+                    ) : (
+                      <Sun className="w-3.5 h-3.5 text-[#E8743B] shrink-0" />
+                    )}
+                    {h.data.typ === "natt" ? "Natt" : "Tuppplur"}
+                    {h.data.slut
+                      ? ` · ${formatVaraktighet((new Date(h.data.slut) - new Date(h.data.start)) / 60000)}`
+                      : " · pågår"}
+                  </span>
+                )}
               </li>
             ))}
           </ul>
@@ -502,30 +524,49 @@ function StatCard({ emoji, varde, label }) {
 
 function DagbokVy({ dagsloggar, setDagsloggar }) {
   const [datum, setDatum] = useState(todayISO());
+  const [nyTid, setNyTid] = useState(toLocalTimeInputValue(new Date().toISOString()));
   const [nyRatt, setNyRatt] = useState("");
   const [nyKommentar, setNyKommentar] = useState("");
   const [nyMaltid, setNyMaltid] = useState(MALTIDER[2]); // Lunch default
   const [maltidOppen, setMaltidOppen] = useState(false);
+  const [redigerarId, setRedigerarId] = useState(null);
+  const [redigerTid, setRedigerTid] = useState("");
 
   const dagensPoster = dagsloggar[datum] || [];
 
   const laggTill = () => {
     const text = nyRatt.trim();
-    if (!text) return;
+    if (!text || !nyTid) return;
     const post = {
       id: crypto.randomUUID(),
       maltid: nyMaltid,
       ratt: text,
       kommentar: nyKommentar.trim(),
-      tid: new Date().toISOString(),
+      tid: new Date(`${datum}T${nyTid}:00`).toISOString(),
     };
     setDagsloggar({ ...dagsloggar, [datum]: [...dagensPoster, post] });
     setNyRatt("");
     setNyKommentar("");
+    setNyTid(toLocalTimeInputValue(new Date().toISOString()));
   };
 
   const taBort = (id) => {
     setDagsloggar({ ...dagsloggar, [datum]: dagensPoster.filter((p) => p.id !== id) });
+  };
+
+  const borjaRedigeraTid = (post) => {
+    setRedigerarId(post.id);
+    setRedigerTid(toLocalTimeInputValue(post.tid));
+  };
+
+  const sparaTid = (dag, post) => {
+    if (!redigerTid) return;
+    const nyttTid = new Date(`${dag}T${redigerTid}:00`).toISOString();
+    setDagsloggar({
+      ...dagsloggar,
+      [dag]: dagsloggar[dag].map((p) => (p.id === post.id ? { ...p, tid: nyttTid } : p)),
+    });
+    setRedigerarId(null);
   };
 
   const alleDatum = Object.keys(dagsloggar)
@@ -535,7 +576,7 @@ function DagbokVy({ dagsloggar, setDagsloggar }) {
   return (
     <div>
       <div className="bg-white rounded-2xl border border-[#E8DFCC] p-4 mb-6">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+        <div className="grid grid-cols-2 gap-3 mb-3">
           <div className="min-w-0">
             <label className="block text-xs font-medium text-[#6B6358] mb-1.5">Datum</label>
             <input
@@ -545,35 +586,45 @@ function DagbokVy({ dagsloggar, setDagsloggar }) {
               className="w-full max-w-full min-w-0 box-border appearance-none bg-[#FBF6EF] border border-[#E8DFCC] rounded-xl px-3 py-2 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#E8743B]"
             />
           </div>
-          <div className="relative min-w-0">
-            <label className="block text-xs font-medium text-[#6B6358] mb-1.5">Måltid</label>
-            <button
-              onClick={() => setMaltidOppen(!maltidOppen)}
-              className="w-full min-w-0 flex items-center justify-between bg-[#FBF6EF] border border-[#E8DFCC] rounded-xl px-3 py-2 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#E8743B]"
-            >
-              {nyMaltid}
-              <ChevronDown className="w-3.5 h-3.5 text-[#A9A092]" />
-            </button>
-            {maltidOppen && (
-              <div className="absolute z-10 mt-1 w-full bg-white border border-[#E8DFCC] rounded-xl shadow-lg overflow-hidden">
-                {MALTIDER.map((m) => (
-                  <button
-                    key={m}
-                    onClick={() => {
-                      setNyMaltid(m);
-                      setMaltidOppen(false);
-                    }}
-                    className={`w-full text-left px-3 py-2.5 text-sm flex items-center justify-between ${
-                      nyMaltid === m ? "bg-[#5B7B5A] text-white" : "hover:bg-[#F0E9DB]"
-                    }`}
-                  >
-                    {m}
-                    {nyMaltid === m && <Check className="w-3.5 h-3.5" />}
-                  </button>
-                ))}
-              </div>
-            )}
+          <div className="min-w-0">
+            <label className="block text-xs font-medium text-[#6B6358] mb-1.5">Klockslag</label>
+            <input
+              type="time"
+              value={nyTid}
+              onChange={(e) => setNyTid(e.target.value)}
+              className="w-full max-w-full min-w-0 box-border appearance-none bg-[#FBF6EF] border border-[#E8DFCC] rounded-xl px-3 py-2 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#E8743B]"
+            />
           </div>
+        </div>
+
+        <div className="relative min-w-0 mb-3">
+          <label className="block text-xs font-medium text-[#6B6358] mb-1.5">Måltid</label>
+          <button
+            onClick={() => setMaltidOppen(!maltidOppen)}
+            className="w-full min-w-0 flex items-center justify-between bg-[#FBF6EF] border border-[#E8DFCC] rounded-xl px-3 py-2 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#E8743B]"
+          >
+            {nyMaltid}
+            <ChevronDown className="w-3.5 h-3.5 text-[#A9A092]" />
+          </button>
+          {maltidOppen && (
+            <div className="absolute z-10 mt-1 w-full bg-white border border-[#E8DFCC] rounded-xl shadow-lg overflow-hidden">
+              {MALTIDER.map((m) => (
+                <button
+                  key={m}
+                  onClick={() => {
+                    setNyMaltid(m);
+                    setMaltidOppen(false);
+                  }}
+                  className={`w-full text-left px-3 py-2.5 text-sm flex items-center justify-between ${
+                    nyMaltid === m ? "bg-[#5B7B5A] text-white" : "hover:bg-[#F0E9DB]"
+                  }`}
+                >
+                  {m}
+                  {nyMaltid === m && <Check className="w-3.5 h-3.5" />}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         <label className="block text-xs font-medium text-[#6B6358] mb-1.5">Vad åt barnet?</label>
@@ -615,29 +666,65 @@ function DagbokVy({ dagsloggar, setDagsloggar }) {
               <div className="bg-white rounded-2xl border border-[#E8DFCC] divide-y divide-[#F0E9DB]">
                 {[...dagsloggar[d]]
                   .sort((a, b) => new Date(a.tid) - new Date(b.tid))
-                  .map((post) => (
-                    <div key={post.id} className="flex items-start justify-between px-4 py-3">
-                      <div>
-                        <span className="text-xs font-medium text-[#E8743B] uppercase tracking-wide">
-                          {post.maltid}
-                        </span>
-                        <p className="text-sm mt-0.5">{post.ratt}</p>
-                        {post.kommentar && (
-                          <p className="text-xs text-[#A9A092] mt-0.5">{post.kommentar}</p>
-                        )}
+                  .map((post) =>
+                    redigerarId === post.id ? (
+                      <div key={post.id} className="px-4 py-3">
+                        <label className="block text-[10px] font-medium text-[#6B6358] mb-1">Klockslag</label>
+                        <input
+                          type="time"
+                          value={redigerTid}
+                          onChange={(e) => setRedigerTid(e.target.value)}
+                          className="w-full max-w-full min-w-0 box-border appearance-none bg-[#FBF6EF] border border-[#E8DFCC] rounded-xl px-2.5 py-1.5 text-sm mb-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#E8743B]"
+                        />
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => setRedigerarId(null)}
+                            className="flex-1 text-xs font-medium bg-[#FBF6EF] border border-[#E8DFCC] rounded-full py-1.5"
+                          >
+                            Avbryt
+                          </button>
+                          <button
+                            onClick={() => sparaTid(d, post)}
+                            className="flex-1 text-xs font-medium bg-[#2D2A26] text-white rounded-full py-1.5"
+                          >
+                            Spara
+                          </button>
+                        </div>
                       </div>
-                      <button
-                        onClick={() => {
-                          const ny = dagsloggar[d].filter((p) => p.id !== post.id);
-                          setDagsloggar({ ...dagsloggar, [d]: ny });
-                        }}
-                        className="text-[#A9A092] hover:text-[#C75450] p-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#E8743B] rounded shrink-0"
-                        aria-label="Ta bort"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  ))}
+                    ) : (
+                      <div key={post.id} className="flex items-start justify-between px-4 py-3">
+                        <div>
+                          <span className="text-xs text-[#A9A092]">{formatKlockslag(post.tid)}</span>{" "}
+                          <span className="text-xs font-medium text-[#E8743B] uppercase tracking-wide">
+                            {post.maltid}
+                          </span>
+                          <p className="text-sm mt-0.5">{post.ratt}</p>
+                          {post.kommentar && (
+                            <p className="text-xs text-[#A9A092] mt-0.5">{post.kommentar}</p>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button
+                            onClick={() => borjaRedigeraTid(post)}
+                            className="text-[#A9A092] hover:text-[#2D2A26] p-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#E8743B] rounded"
+                            aria-label="Redigera klockslag"
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => {
+                              const ny = dagsloggar[d].filter((p) => p.id !== post.id);
+                              setDagsloggar({ ...dagsloggar, [d]: ny });
+                            }}
+                            className="text-[#A9A092] hover:text-[#C75450] p-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#E8743B] rounded"
+                            aria-label="Ta bort"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    )
+                  )}
               </div>
             </div>
           ))}
@@ -665,6 +752,12 @@ function SomnVy({ somnloggar, setSomnloggar, alderIVeckor }) {
   const [redigerStart, setRedigerStart] = useState("");
   const [redigerSlut, setRedigerSlut] = useState("");
 
+  const [visaEfterhand, setVisaEfterhand] = useState(false);
+  const [efterhandTyp, setEfterhandTyp] = useState("pass");
+  const [efterhandDatum, setEfterhandDatum] = useState(todayISO());
+  const [efterhandStart, setEfterhandStart] = useState("");
+  const [efterhandSlut, setEfterhandSlut] = useState("");
+
   const aktivt = somnloggar.find((s) => !s.slut);
   const schema = alderIVeckor != null ? getSomnSchema(alderIVeckor) : null;
   const somnprognos = berakSomnprognos(somnloggar, alderIVeckor);
@@ -683,6 +776,19 @@ function SomnVy({ somnloggar, setSomnloggar, alderIVeckor }) {
 
   const taBort = (id) => {
     setSomnloggar(somnloggar.filter((s) => s.id !== id));
+  };
+
+  const laggTillEfterhand = () => {
+    if (!efterhandStart || !efterhandSlut) return;
+    const start = new Date(`${efterhandDatum}T${efterhandStart}:00`);
+    let slut = new Date(`${efterhandDatum}T${efterhandSlut}:00`);
+    if (slut <= start) slut = new Date(slut.getTime() + 24 * 60 * 60 * 1000);
+    setSomnloggar([
+      { id: crypto.randomUUID(), typ: efterhandTyp, start: start.toISOString(), slut: slut.toISOString() },
+      ...somnloggar,
+    ]);
+    setEfterhandStart("");
+    setEfterhandSlut("");
   };
 
   const borjaRedigera = (post) => {
@@ -801,6 +907,80 @@ function SomnVy({ somnloggar, setSomnloggar, alderIVeckor }) {
               className="w-full flex items-center justify-center gap-1.5 bg-[#E8743B] text-white rounded-xl py-2.5 text-sm font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#E8743B]"
             >
               <Moon className="w-4 h-4" /> Lägg barnet
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Lägg till i efterhand */}
+      <div className="bg-white rounded-2xl border border-[#E8DFCC] mb-5 overflow-hidden">
+        <button
+          onClick={() => setVisaEfterhand(!visaEfterhand)}
+          className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-[#6B6358] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#E8743B]"
+        >
+          Lägg till sömnpass i efterhand
+          <ChevronDown className={`w-3.5 h-3.5 text-[#A9A092] transition-transform ${visaEfterhand ? "rotate-180" : ""}`} />
+        </button>
+        {visaEfterhand && (
+          <div className="px-4 pb-4">
+            <div className="flex gap-2 mb-3">
+              <button
+                onClick={() => setEfterhandTyp("pass")}
+                className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-sm font-medium border ${
+                  efterhandTyp === "pass"
+                    ? "bg-[#5B7B5A] text-white border-[#5B7B5A]"
+                    : "bg-[#FBF6EF] text-[#6B6358] border-[#E8DFCC]"
+                }`}
+              >
+                <Sun className="w-3.5 h-3.5" /> Tuppplur
+              </button>
+              <button
+                onClick={() => setEfterhandTyp("natt")}
+                className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-sm font-medium border ${
+                  efterhandTyp === "natt"
+                    ? "bg-[#5B7B5A] text-white border-[#5B7B5A]"
+                    : "bg-[#FBF6EF] text-[#6B6358] border-[#E8DFCC]"
+                }`}
+              >
+                <Moon className="w-3.5 h-3.5" /> Natt
+              </button>
+            </div>
+            <div className="grid grid-cols-3 gap-2 mb-3">
+              <div className="min-w-0">
+                <label className="block text-[10px] font-medium text-[#6B6358] mb-1">Datum</label>
+                <input
+                  type="date"
+                  value={efterhandDatum}
+                  onChange={(e) => setEfterhandDatum(e.target.value)}
+                  max={todayISO()}
+                  className="w-full max-w-full min-w-0 box-border appearance-none bg-[#FBF6EF] border border-[#E8DFCC] rounded-xl px-2 py-2 text-xs focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#E8743B]"
+                />
+              </div>
+              <div className="min-w-0">
+                <label className="block text-[10px] font-medium text-[#6B6358] mb-1">Somnade</label>
+                <input
+                  type="time"
+                  value={efterhandStart}
+                  onChange={(e) => setEfterhandStart(e.target.value)}
+                  className="w-full max-w-full min-w-0 box-border appearance-none bg-[#FBF6EF] border border-[#E8DFCC] rounded-xl px-2 py-2 text-xs focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#E8743B]"
+                />
+              </div>
+              <div className="min-w-0">
+                <label className="block text-[10px] font-medium text-[#6B6358] mb-1">Vaknade</label>
+                <input
+                  type="time"
+                  value={efterhandSlut}
+                  onChange={(e) => setEfterhandSlut(e.target.value)}
+                  className="w-full max-w-full min-w-0 box-border appearance-none bg-[#FBF6EF] border border-[#E8DFCC] rounded-xl px-2 py-2 text-xs focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#E8743B]"
+                />
+              </div>
+            </div>
+            <button
+              onClick={laggTillEfterhand}
+              disabled={!efterhandStart || !efterhandSlut}
+              className="w-full flex items-center justify-center gap-1.5 bg-[#5B7B5A] text-white rounded-xl py-2.5 text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#E8743B]"
+            >
+              <Plus className="w-4 h-4" /> Lägg till
             </button>
           </div>
         )}
