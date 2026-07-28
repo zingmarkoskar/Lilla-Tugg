@@ -114,8 +114,9 @@ function formatVaraktighet(minuter) {
 function berakSomnprognos(somnloggar, alderIVeckor) {
   if (alderIVeckor == null) return null;
 
+  const nu = new Date();
   const avslutade = somnloggar
-    .filter((s) => s.slut)
+    .filter((s) => s.slut && new Date(s.slut) <= nu)
     .sort((a, b) => new Date(b.slut) - new Date(a.slut));
   const senaste = avslutade[0];
   if (!senaste) return null;
@@ -920,6 +921,7 @@ function SomnVy({ somnloggar, setSomnloggar, alderIVeckor }) {
   const [efterhandDatum, setEfterhandDatum] = useState(todayISO());
   const [efterhandStart, setEfterhandStart] = useState("");
   const [efterhandSlut, setEfterhandSlut] = useState("");
+  const [efterhandFel, setEfterhandFel] = useState("");
 
   const aktivt = somnloggar.find((s) => !s.slut);
   const schema = alderIVeckor != null ? getSomnSchema(alderIVeckor) : null;
@@ -946,6 +948,12 @@ function SomnVy({ somnloggar, setSomnloggar, alderIVeckor }) {
     const start = new Date(`${efterhandDatum}T${efterhandStart}:00`);
     let slut = new Date(`${efterhandDatum}T${efterhandSlut}:00`);
     if (slut <= start) slut = new Date(slut.getTime() + 24 * 60 * 60 * 1000);
+    const nu = new Date();
+    if (start > nu || slut > nu) {
+      setEfterhandFel("Den tiden ligger i framtiden — kontrollera datum och klockslag.");
+      return;
+    }
+    setEfterhandFel("");
     setSomnloggar([
       { id: crypto.randomUUID(), typ: efterhandTyp, start: start.toISOString(), slut: slut.toISOString() },
       ...somnloggar,
@@ -1114,7 +1122,10 @@ function SomnVy({ somnloggar, setSomnloggar, alderIVeckor }) {
                 <input
                   type="date"
                   value={efterhandDatum}
-                  onChange={(e) => setEfterhandDatum(e.target.value)}
+                  onChange={(e) => {
+                    setEfterhandDatum(e.target.value);
+                    setEfterhandFel("");
+                  }}
                   max={todayISO()}
                   className="w-full max-w-full min-w-0 box-border appearance-none bg-[#FBF6EF] border border-[#E8DFCC] rounded-xl px-2 py-2 text-xs focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#E8743B]"
                 />
@@ -1124,7 +1135,10 @@ function SomnVy({ somnloggar, setSomnloggar, alderIVeckor }) {
                 <input
                   type="time"
                   value={efterhandStart}
-                  onChange={(e) => setEfterhandStart(e.target.value)}
+                  onChange={(e) => {
+                    setEfterhandStart(e.target.value);
+                    setEfterhandFel("");
+                  }}
                   className="w-full max-w-full min-w-0 box-border appearance-none bg-[#FBF6EF] border border-[#E8DFCC] rounded-xl px-2 py-2 text-xs focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#E8743B]"
                 />
               </div>
@@ -1133,11 +1147,19 @@ function SomnVy({ somnloggar, setSomnloggar, alderIVeckor }) {
                 <input
                   type="time"
                   value={efterhandSlut}
-                  onChange={(e) => setEfterhandSlut(e.target.value)}
+                  onChange={(e) => {
+                    setEfterhandSlut(e.target.value);
+                    setEfterhandFel("");
+                  }}
                   className="w-full max-w-full min-w-0 box-border appearance-none bg-[#FBF6EF] border border-[#E8DFCC] rounded-xl px-2 py-2 text-xs focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#E8743B]"
                 />
               </div>
             </div>
+            {efterhandFel && (
+              <p className="text-[#C75450] text-xs mb-3 flex items-center gap-1">
+                <AlertCircle className="w-3.5 h-3.5 shrink-0" /> {efterhandFel}
+              </p>
+            )}
             <button
               onClick={laggTillEfterhand}
               disabled={!efterhandStart || !efterhandSlut}
