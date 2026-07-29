@@ -123,10 +123,10 @@ function berakSomnprognos(somnloggar, alderIVeckor) {
 
   const schema = getSomnSchema(alderIVeckor);
   const referensTid = new Date(senaste.slut);
-  const referensDag = referensTid.toISOString().slice(0, 10);
+  const referensDag = localDateKey(referensTid);
 
   const antalPassIdag = avslutade.filter(
-    (s) => s.typ === "pass" && new Date(s.slut).toISOString().slice(0, 10) === referensDag && new Date(s.slut) <= referensTid
+    (s) => s.typ === "pass" && localDateKey(s.slut) === referensDag && new Date(s.slut) <= referensTid
   ).length;
 
   const arLaggning = antalPassIdag >= schema.vaknaFonster.length;
@@ -153,7 +153,17 @@ const TILLVAXTNIVAER = [
   { namn: "Guldhjälte", beskrivning: "En sann legend i rustning.", bild: hjalteBild10, poangKrav: 200 },
 ];
 
-const todayISO = () => new Date().toISOString().slice(0, 10);
+// Lokalt datum (inte UTC) — .toISOString().slice(0,10) skulle annars lägga t.ex.
+// 00:57 svensk tid på fel dag, eftersom UTC ligger 1-2 timmar efter lokal tid.
+const localDateKey = (instant) => {
+  const d = instant instanceof Date ? instant : new Date(instant);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const dag = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${dag}`;
+};
+
+const todayISO = () => localDateKey(new Date());
 
 const formatSwedishDate = (isoDate) => {
   const d = new Date(isoDate + "T00:00:00");
@@ -529,7 +539,7 @@ function OversiktVy({
 
   const somnprognos = berakSomnprognos(somnloggar, alderIVeckor);
 
-  const dagensSomn = somnloggar.filter((s) => s.start.slice(0, 10) === idagISO);
+  const dagensSomn = somnloggar.filter((s) => localDateKey(s.start) === idagISO);
   const dagensHandelser = [
     ...dagensPoster.map((p) => ({ tid: p.tid, typ: "matlogg", data: p })),
     ...dagensSomn.map((s) => ({ tid: s.start, typ: "somn", data: s })),
@@ -982,9 +992,9 @@ function SomnVy({ somnloggar, setSomnloggar, alderIVeckor }) {
   const idagISO = todayISO();
   const minuterIdag =
     avslutade
-      .filter((s) => s.start.slice(0, 10) === idagISO)
+      .filter((s) => localDateKey(s.start) === idagISO)
       .reduce((sum, s) => sum + (new Date(s.slut) - new Date(s.start)) / 60000, 0) +
-    (aktivt && aktivt.start.slice(0, 10) === idagISO
+    (aktivt && localDateKey(aktivt.start) === idagISO
       ? (Date.now() - new Date(aktivt.start).getTime()) / 60000
       : 0);
   const somnpoangIdag = schema ? Math.min(100, Math.round((minuterIdag / 60 / schema.rekommenderadTotalTimmar) * 100)) : null;
@@ -992,12 +1002,12 @@ function SomnVy({ somnloggar, setSomnloggar, alderIVeckor }) {
   // Statistik senaste 7 dagarna
   const senaste7Dagar = Array.from({ length: 7 }, (_, i) => {
     const d = new Date();
-    d.setUTCDate(d.getUTCDate() - (6 - i));
-    return d.toISOString().slice(0, 10);
+    d.setDate(d.getDate() - (6 - i));
+    return localDateKey(d);
   });
   const timmarPerDag = senaste7Dagar.map((dag) =>
     avslutade
-      .filter((s) => s.start.slice(0, 10) === dag)
+      .filter((s) => localDateKey(s.start) === dag)
       .reduce((sum, s) => sum + (new Date(s.slut) - new Date(s.start)) / 60000, 0) / 60
   );
   const maxSkala = Math.max(schema?.rekommenderadTotalTimmar || 0, ...timmarPerDag, 1) * 1.15;
@@ -1005,7 +1015,7 @@ function SomnVy({ somnloggar, setSomnloggar, alderIVeckor }) {
   // Historik grupperad per dag
   const perDag = {};
   for (const s of avslutade) {
-    const dag = s.start.slice(0, 10);
+    const dag = localDateKey(s.start);
     (perDag[dag] ||= []).push(s);
   }
   const alleDatum = Object.keys(perDag).sort((a, b) => (a < b ? 1 : -1));
