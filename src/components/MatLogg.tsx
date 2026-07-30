@@ -109,6 +109,17 @@ function formatVaraktighet(minuter) {
   return `${h} h ${m} min`;
 }
 
+// Hur många minuter av ett sömnpass som faller inom ett visst (lokalt) dygn — ett pass
+// som sträcker sig över midnatt ska delas upp mellan de två dygnen det faktiskt pågår,
+// inte räknas i sin helhet på det dygn det började.
+function minuterSomnPaDag(start, slut, dagISO) {
+  const dagStart = new Date(`${dagISO}T00:00:00`).getTime();
+  const dagSlut = dagStart + 24 * 60 * 60 * 1000;
+  const overlapStart = Math.max(new Date(start).getTime(), dagStart);
+  const overlapSlut = Math.min(new Date(slut).getTime(), dagSlut);
+  return Math.max(0, overlapSlut - overlapStart) / 60000;
+}
+
 // Räknar ut när nästa sömnpass (eller läggning) väntas, baserat på senast avslutade
 // sömnpass och hur många tupplurar som redan är loggade samma dag.
 function berakSomnprognos(somnloggar, alderIVeckor) {
@@ -988,15 +999,12 @@ function SomnVy({ somnloggar, setSomnloggar, alderIVeckor }) {
     setRedigerarId(null);
   };
 
-  // Sömnpoäng idag: andel av ungefärligt rekommenderat dygnsbehov
+  // Sömnpoäng idag: andel av ungefärligt rekommenderat dygnsbehov. Ett sömnpass som
+  // sträcker sig över midnatt delas upp mellan de två dygnen det faktiskt pågår.
   const idagISO = todayISO();
   const minuterIdag =
-    avslutade
-      .filter((s) => localDateKey(s.start) === idagISO)
-      .reduce((sum, s) => sum + (new Date(s.slut) - new Date(s.start)) / 60000, 0) +
-    (aktivt && localDateKey(aktivt.start) === idagISO
-      ? (Date.now() - new Date(aktivt.start).getTime()) / 60000
-      : 0);
+    avslutade.reduce((sum, s) => sum + minuterSomnPaDag(s.start, s.slut, idagISO), 0) +
+    (aktivt ? minuterSomnPaDag(aktivt.start, new Date().toISOString(), idagISO) : 0);
   const somnpoangIdag = schema ? Math.min(100, Math.round((minuterIdag / 60 / schema.rekommenderadTotalTimmar) * 100)) : null;
 
   // Statistik senaste 7 dagarna
@@ -1005,10 +1013,8 @@ function SomnVy({ somnloggar, setSomnloggar, alderIVeckor }) {
     d.setDate(d.getDate() - (6 - i));
     return localDateKey(d);
   });
-  const timmarPerDag = senaste7Dagar.map((dag) =>
-    avslutade
-      .filter((s) => localDateKey(s.start) === dag)
-      .reduce((sum, s) => sum + (new Date(s.slut) - new Date(s.start)) / 60000, 0) / 60
+  const timmarPerDag = senaste7Dagar.map(
+    (dag) => avslutade.reduce((sum, s) => sum + minuterSomnPaDag(s.start, s.slut, dag), 0) / 60
   );
   const maxSkala = Math.max(schema?.rekommenderadTotalTimmar || 0, ...timmarPerDag, 1) * 1.15;
 
